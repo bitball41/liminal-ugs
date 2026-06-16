@@ -2982,14 +2982,11 @@ function generateAllSections() {
   });
 
   files.forEach((file) => {
-    const lower = file.toLowerCase();
-    if (lower.startsWith("cl")) {
-      const aftercl = lower.substring(2);
-      if (aftercl.length > 0) {
-        const firstChar = aftercl[0].toUpperCase();
-        if (filesByChar[firstChar]) {
-          filesByChar[firstChar].push(file);
-        }
+    const trimmed = file.trim();
+    if (trimmed.length > 0) {
+      const firstChar = trimmed[0].toUpperCase();
+      if (filesByChar[firstChar]) {
+        filesByChar[firstChar].push(file);
       }
     }
   });
