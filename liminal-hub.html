@@ -126,8 +126,7 @@
       <div class="loading" id="loadingMsg">Loading games…</div>
     </div>
 
-    <button id="lolbutton"
-      onclick="const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/bitball41/liminal-ugs@main/games.js?'+Date.now();document.body.appendChild(s);">
+    <button id="lolbutton" onclick="window.location.reload();">
       Games not showing? Click to reload
     </button>
   </div>
@@ -140,24 +139,22 @@
   (function(){
     var input = document.getElementById('searchInput');
     var count = document.getElementById('count');
-
-    function totalGames(){ return document.querySelectorAll('.letter-section input[type="button"]').length; }
+    var cachedSections = [];   // [{ el, buttons:[{ el, text }] }]
+    var totalCount = 0;
 
     function runSearch(){
       var query = input.value.toLowerCase().trim();
-      var sections = document.querySelectorAll('.letter-section');
       var shown = 0;
-      sections.forEach(function(section){
-        var buttons = section.querySelectorAll('input[type="button"]');
+      cachedSections.forEach(function(sec){
         var anyVisible = false;
-        buttons.forEach(function(btn){
-          var matches = query === '' || btn.value.toLowerCase().includes(query);
-          btn.style.display = matches ? '' : 'none';
+        sec.buttons.forEach(function(item){
+          var matches = query === '' || item.text.includes(query);
+          item.el.style.display = matches ? '' : 'none';
           if (matches){ anyVisible = true; shown++; }
         });
-        section.style.display = anyVisible ? '' : 'none';
+        sec.el.style.display = anyVisible ? '' : 'none';
       });
-      if (query === '') count.textContent = totalGames() + ' games loaded';
+      if (query === '') count.textContent = totalCount + ' games loaded';
       else count.textContent = shown + ' result' + (shown === 1 ? '' : 's') + ' for "' + input.value.trim() + '"';
     }
 
@@ -166,13 +163,25 @@
     // games.js builds sections asynchronously after its <script> runs; wait for them to appear.
     var tries = 0;
     var poll = setInterval(function(){
-      var loaded = totalGames() > 0;
+      var loaded = document.querySelectorAll('.letter-section input[type="button"]').length > 0;
       if (loaded || ++tries > 100){
         clearInterval(poll);
         var lm = document.getElementById('loadingMsg');
         if (lm) lm.remove();
-        if (loaded) runSearch();
-        else count.textContent = 'Could not load games — try the reload button.';
+        if (loaded){
+          // Cache nodes and pre-lowercase titles once so each keystroke does zero DOM queries.
+          document.querySelectorAll('.letter-section').forEach(function(section){
+            var buttons = [];
+            section.querySelectorAll('input[type="button"]').forEach(function(btn){
+              buttons.push({ el: btn, text: btn.value.toLowerCase() });
+              totalCount++;
+            });
+            cachedSections.push({ el: section, buttons: buttons });
+          });
+          runSearch();
+        } else {
+          count.textContent = 'Could not load games — try the reload button.';
+        }
       }
     }, 100);
   })();

@@ -2984,7 +2984,7 @@ function generateAllSections() {
   files.forEach((file) => {
     const trimmed = file.trim();
     if (trimmed.length > 0) {
-      const firstChar = trimmed[0].toUpperCase();
+      const firstChar = trimmed[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
       if (filesByChar[firstChar]) {
         filesByChar[firstChar].push(file);
       }
