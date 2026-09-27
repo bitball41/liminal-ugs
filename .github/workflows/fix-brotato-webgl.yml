@@ -1,0 +1,50 @@
+name: Fix Brotato WebGL startup
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-brotato-webgl.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch Brotato canvas startup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('UGS-Files/Brotato.html')
+          s = p.read_text()
+
+          old_canvas = '''      #canvas {\n        display: none;\n        width: 100vw;\n        height: 100vh;\n      }'''
+          new_canvas = '''      #canvas {\n        display: block;\n        position: fixed;\n        inset: 0;\n        z-index: 0;\n        width: 100vw;\n        height: 100vh;\n      }'''
+          if old_canvas not in s:
+              raise SystemExit('Expected #canvas block not found')
+          s = s.replace(old_canvas, new_canvas, 1)
+
+          old_loading = '''      #loading {\n        width: min(520px, 82vw);\n        text-align: center;\n        user-select: none;\n      }'''
+          new_loading = '''      #loading {\n        position: fixed;\n        z-index: 2;\n        width: min(520px, 82vw);\n        text-align: center;\n        user-select: none;\n      }'''
+          if old_loading not in s:
+              raise SystemExit('Expected #loading block not found')
+          s = s.replace(old_loading, new_loading, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add UGS-Files/Brotato.html
+          git commit -m 'Fix Brotato WebGL canvas startup [skip ci]'
+          git push
+
+      - name: Purge jsDelivr
+        run: |
+          curl --fail --show-error --silent \
+            'https://purge.jsdelivr.net/gh/bitball41/liminal-ugs@main/UGS-Files/Brotato.html'
