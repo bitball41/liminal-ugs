@@ -1,154 +1,418 @@
-<!-- Ultimate Game Stash file--> 
-<!-- For the regularly updating doc go to https://docs.google.com/document/d/1_FmH3BlSBQI7FGgAQL59-ZPe8eCxs35wel6JUyVaG8Q/ -->
-<!-- ported by henw -->
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Brotato</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
-
-<style>
-body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; }
-#canvas { display: block; width: 100vw !important; height: 100vh !important; position: fixed; top: 0; left: 0; border: none; outline: none; object-fit: fill; }
-
-#status { 
-    position: absolute; 
-    top: 30px; 
-    left: 0; 
-    width: 100%; 
-    z-index: 10; 
-    text-align: center; 
-    font-family: 'Orbitron', sans-serif; 
-    font-size: 22px;
-    letter-spacing: 3px;
-    background: linear-gradient(to right, #500, #550, #050, #055, #005, #505, #500);
-    background-size: 200% auto;
-    color: transparent;
-    -webkit-background-clip: text;
-    background-clip: text;
-    animation: rainbow 3s linear infinite;
-    pointer-events: none;
-    text-shadow: 0 0 10px rgba(255,255,255,0.1);
-}
-
-#status i { margin-right: 15px; }
-
-@keyframes rainbow { to { background-position: 200% center; } }
-</style>
-<script src="https://cdn.jsdelivr.net/gh/gzuidhof/coi-serviceworker@latest/coi-serviceworker.min.js"></script>
-</head>
-<body>
-<canvas id="canvas"></canvas>
-<div id="status">
-    <i class="fas fa-compact-disc fa-spin"></i> LOADING: 0.00 / 160.54 MB
-</div>
-
+<html><head>
+<base href="https://cdn.jsdelivr.net/gh/Reeyuki/yukios-games@main/html/">
 <script>
 (function() {
-'use strict';
-const HASH = "20b998679f3a2a598bf5c10a5dd8422b47272a04";
-const BASE = `https://cdn.jsdelivr.net/gh/aahspaghetticode/ignore@${HASH}/`;
-const TOTAL_MB = "160.54";
+  const ROOT_BASE = "https://cdn.jsdelivr.net/gh/Reeyuki/yukios-games@main/";
+  const ASSET_DIR_BASE = "https://cdn.jsdelivr.net/gh/Reeyuki/yukios-games@main/html/";
+  const JSDELIVR_GH_BASE = "https://cdn.jsdelivr.net/gh/";
+  const STATICALLY_GH_BASE = "https://cdn.jsdelivr.net/gh/";
 
-const originalFetch = window.fetch;
-const mergedData = {};
-const pendingRequests = {};
-let bytesLoadedSoFar = 0;
-
-const statusEl = document.getElementById('status');
-
-function updateStatus(currentBytes) {
-    const currentMB = (currentBytes / 1048576).toFixed(2);
-    statusEl.innerHTML = `<i class="fas fa-sync-alt fa-spin"></i> LOADING: ${currentMB} / ${TOTAL_MB} MB`;
-}
-
-window.fetch = function(url, ...args) {
-    const u = url.toString();
-    if (u.includes("Brotato.pck") || u.includes("Brotato.wasm")) {
-        const f = u.includes(".pck") ? "Brotato.pck" : "Brotato.wasm";
-        if (mergedData[f]) return Promise.resolve(new Response(mergedData[f]));
-        return new Promise((resolve) => {
-            if (!pendingRequests[f]) pendingRequests[f] = [];
-            pendingRequests[f].push(resolve);
-        });
+  function resolve(url) {
+    if (typeof url !== 'string' || !url) return url;
+    if (url.startsWith('blob:') || url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+    let p = url;
+    if (p.startsWith('/')) {
+      p = p.slice(1);
+      if (p.startsWith('next/')) return ASSET_DIR_BASE + p;
+      if (p.startsWith('static/games/')) p = p.replace('static/games/', '');
+      return ROOT_BASE + p;
     }
-    return originalFetch(url, ...args);
-};
+    return ASSET_DIR_BASE + url;
+  }
 
-async function merge(name, start, end) {
-    const bufs = [];
-    for (let i = start; i <= end; i++) {
-        const url = BASE + encodeURIComponent(name + ".part" + i);
-        const r = await originalFetch(url);
-        if (!r.ok) throw new Error();
-        const data = await r.arrayBuffer();
-        bufs.push(data);
-        bytesLoadedSoFar += data.byteLength;
-        updateStatus(bytesLoadedSoFar);
+  function postNavigate(url) {
+    try { parent.postMessage({ __yukios: 'navigate', url }, '*'); } catch {}
+  }
+
+  const createElement = document.createElement.bind(document);
+  document.createElement = function(tag) {
+    const el = createElement(tag);
+    const tagName = tag.toLowerCase();
+    if (tagName === 'script') {
+      let src = '';
+      Object.defineProperty(el, 'src', {
+        get() { return src; },
+        set(val) {
+          src = resolve(val);
+        },
+        configurable: true
+      });
+    } else if (tagName === 'iframe' || tagName === 'frame') {
+      Object.defineProperty(el, 'src', {
+        get() { return el.getAttribute('src'); },
+        set(val) { el.setAttribute('src', resolve(val)); },
+        configurable: true
+      });
     }
-    const b = new Blob(bufs, { type: 'application/octet-stream' });
-    mergedData[name] = b;
-    if (pendingRequests[name]) {
-        pendingRequests[name].forEach(res => res(new Response(b)));
-        delete pendingRequests[name];
+    return el;
+  };
+
+  const setAttribute = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(name, value) {
+    const tagName = this.tagName.toLowerCase();
+    const attrName = name.toLowerCase();
+    if ((tagName === 'iframe' || tagName === 'frame' || tagName === 'script' || tagName === 'img') && attrName === 'src') {
+      value = resolve(value);
+    } else if ((tagName === 'link' || tagName === 'a') && attrName === 'href') {
+      value = resolve(value);
     }
-}
+    return setAttribute.call(this, name, value);
+  };
 
-async function fetchSingle(name) {
-    const url = BASE + encodeURIComponent(name);
-    const r = await originalFetch(url);
-    if (!r.ok) throw new Error();
-    const data = await r.arrayBuffer();
-    bytesLoadedSoFar += data.byteLength;
-    updateStatus(bytesLoadedSoFar);
-    const b = new Blob([data], { type: 'application/octet-stream' });
-    mergedData[name] = b;
-    if (pendingRequests[name]) {
-        pendingRequests[name].forEach(res => res(new Response(b)));
-        delete pendingRequests[name];
+  document.addEventListener('click', function(e) {
+    const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    const rawHref = a.getAttribute('href');
+    if (!rawHref || rawHref[0] === '#' || /^javascript:/i.test(rawHref)) return;
+    if (typeof url === 'string' && (url.startsWith(JSDELIVR_GH_BASE) || url.startsWith(STATICALLY_GH_BASE) || url.startsWith('blob:'))) {
+      e.preventDefault();
+      postNavigate(url);
     }
-}
+  }, true);
 
-async function init() {
-    try {
-        await merge("Brotato.pck", 0, 8);
-        await fetchSingle("Brotato.wasm");
-
-        const s = document.createElement('script');
-        s.src = BASE + "Brotato.js";
-        s.onload = () => {
-            const engine = new Engine({
-                "args":[],
-                "canvasResizePolicy":2,
-                "executable":"Brotato",
-                "experimentalVK":false,
-                "fileSizes":{"Brotato.pck":147972096,"Brotato.wasm":19796835},
-                "focusCanvas":true,
-                "gdnativeLibs":[]
-            });
-
-            engine.startGame({
-                onProgress: (current, total) => {
-                    if (total > 0) {
-                        updateStatus(bytesLoadedSoFar);
-                    }
-                }
-            }).then(() => {
-                statusEl.style.display = 'none';
-                window.dispatchEvent(new Event('resize'));
-            });
-        };
-        document.body.appendChild(s);
-    } catch (e) {
-        statusEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> LOAD ERROR`;
+  document.addEventListener('submit', function(e) {
+    const form = e.target;
+    if (!form || !form.getAttribute) return;
+    const action = form.getAttribute('action') || document.baseURI;
+    let url = null;
+    try { url = new URL(action, document.baseURI).href; } catch { return; }
+    if (typeof url === 'string' && (url.startsWith(JSDELIVR_GH_BASE) || url.startsWith(STATICALLY_GH_BASE) || url.startsWith('blob:'))) {
+      e.preventDefault();
+      postNavigate(url);
     }
-}
-init();
+  }, true);
 })();
 </script>
-</body>
-</html>
+    <meta charset="utf-8">
+    <title>Brotato</title>
+    <style>
+      body {
+        margin: 0;
+        background: #000;
+        color: #fff;
+        font-family: Arial, Helvetica, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        overflow: hidden;
+      }
+      #canvas {
+        display: none;
+        width: 100vw;
+        height: 100vh;
+      }
+      #loading {
+        width: min(520px, 82vw);
+        text-align: center;
+        user-select: none;
+      }
+      #loading-title {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 14px;
+      }
+      #progress-track {
+        width: 100%;
+        height: 18px;
+        border: 2px solid #fff;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #171717;
+        box-sizing: border-box;
+      }
+      #progress-bar {
+        width: 0%;
+        height: 100%;
+        background: #fff;
+        transition: width 0.12s linear;
+      }
+      #progress-text {
+        margin-top: 10px;
+        font-size: 14px;
+        color: #cfcfcf;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="loading">
+      <div id="loading-title">Loading Brotato</div>
+      <div id="progress-track"><div id="progress-bar"></div></div>
+      <div id="progress-text">Preparing download…</div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/gh/shxyder/inital@main/Brotato.js"></script>
+    <script>
+      const REPO = "https://cdn.jsdelivr.net/gh/shxyder/inital@main/";
+      const PCK_P = Array.from(
+        { length: 10 },
+        (_, i) => `Brotato.pck.part${(i + 1).toString().padStart(2, "0")}`,
+      );
+      const WASM_P = ["Brotato.wasm.part1", "Brotato.wasm.part2"];
+      let _p = null,
+        _w = null;
+      const _f = window.fetch;
+      window.fetch = (i, n) => {
+        const u = typeof i === "string" ? i : i.url;
+        if (u.endsWith("Brotato.wasm") && !u.includes(".part"))
+          return Promise.resolve(
+            new Response(_w, {
+              status: 200,
+              headers: { "Content-Type": "application/wasm" },
+            }),
+          );
+        if (u.endsWith("Brotato.pck") && !u.includes(".part"))
+          return Promise.resolve(
+            new Response(_p, {
+              status: 200,
+              headers: { "Content-Type": "application/octet-stream" },
+            }),
+          );
+        return _f.apply(window, [i, n]);
+      };
+      const progressBar = document.getElementById("progress-bar");
+      const progressText = document.getElementById("progress-text");
+
+      const formatBytes = (bytes) => {
+        if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
+        return (bytes / 1024 / 1024).toFixed(1) + " MB";
+      };
+
+      function setProgress(loaded, total, label = "Downloading") {
+        const pct = total > 0 ? Math.min(100, (loaded / total) * 100) : 0;
+        progressBar.style.width = pct.toFixed(2) + "%";
+        progressText.textContent = total > 0
+          ? `${label} — ${pct.toFixed(0)}% (${formatBytes(loaded)} / ${formatBytes(total)})`
+          : `${label} — ${formatBytes(loaded)}`;
+      }
+
+      async function getRemoteSize(url) {
+        try {
+          const r = await _f(url, { method: "HEAD", cache: "force-cache" });
+          const n = Number(r.headers.get("content-length"));
+          return Number.isFinite(n) && n > 0 ? n : 0;
+        } catch {
+          return 0;
+        }
+      }
+
+      // Persistent cache for the large game download only.
+      // IMPORTANT: this uses its own IndexedDB database and never deletes,
+      // clears, migrates, or otherwise touches Brotato/Godot save data.
+      const ASSET_DB_NAME = "brotato_download_cache_v1";
+      const ASSET_STORE = "chunks";
+      const ASSET_CACHE_VERSION = "v1";
+      let assetDbPromise = null;
+
+      function openAssetDb() {
+        if (assetDbPromise) return assetDbPromise;
+        assetDbPromise = new Promise((resolve, reject) => {
+          if (!window.indexedDB) {
+            reject(new Error("IndexedDB unavailable"));
+            return;
+          }
+          const req = indexedDB.open(ASSET_DB_NAME, 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(ASSET_STORE)) {
+              db.createObjectStore(ASSET_STORE, { keyPath: "key" });
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error || new Error("Failed to open asset cache"));
+        });
+        return assetDbPromise;
+      }
+
+      function assetCacheKey(url) {
+        return `${ASSET_CACHE_VERSION}:${url}`;
+      }
+
+      async function readCachedAsset(url) {
+        try {
+          const db = await openAssetDb();
+          return await new Promise((resolve, reject) => {
+            const tx = db.transaction(ASSET_STORE, "readonly");
+            const req = tx.objectStore(ASSET_STORE).get(assetCacheKey(url));
+            req.onsuccess = () => {
+              const row = req.result;
+              resolve(row && row.data instanceof ArrayBuffer ? row.data : null);
+            };
+            req.onerror = () => reject(req.error);
+          });
+        } catch (e) {
+          console.warn("Persistent download cache unavailable; using network cache instead.", e);
+          return null;
+        }
+      }
+
+      async function writeCachedAsset(url, buffer) {
+        try {
+          const db = await openAssetDb();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction(ASSET_STORE, "readwrite");
+            tx.objectStore(ASSET_STORE).put({
+              key: assetCacheKey(url),
+              url,
+              size: buffer.byteLength,
+              savedAt: Date.now(),
+              data: buffer,
+            });
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error || new Error("Asset cache write aborted"));
+          });
+        } catch (e) {
+          // Never prevent the game from starting just because persistent caching failed.
+          console.warn("Could not persist downloaded asset; continuing normally.", e);
+        }
+      }
+
+      async function requestPersistentStorage() {
+        try {
+          if (navigator.storage && navigator.storage.persist) {
+            await navigator.storage.persist();
+          }
+        } catch (e) {
+          console.warn("Persistent storage request was not available.", e);
+        }
+      }
+
+      async function fetchWithProgress(url, expectedSize, state, label) {
+        const cached = await readCachedAsset(url);
+        if (cached) {
+          if ((!expectedSize || expectedSize <= 0) && cached.byteLength > 0) {
+            state.total += cached.byteLength;
+          }
+          state.loaded += cached.byteLength;
+          setProgress(state.loaded, state.total, `Loading cached ${label.toLowerCase()}`);
+          return cached;
+        }
+
+        const r = await _f(url, { cache: "force-cache" });
+        if (!r.ok) throw new Error(`Failed to download ${url}: ${r.status}`);
+
+        const actualSize = Number(r.headers.get("content-length"));
+        if ((!expectedSize || expectedSize <= 0) && Number.isFinite(actualSize) && actualSize > 0) {
+          state.total += actualSize;
+        }
+
+        let buffer;
+        if (!r.body || !r.body.getReader) {
+          buffer = await r.arrayBuffer();
+          state.loaded += buffer.byteLength;
+          setProgress(state.loaded, state.total, label);
+        } else {
+          const reader = r.body.getReader();
+          const chunks = [];
+          let received = 0;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.byteLength;
+            state.loaded += value.byteLength;
+            setProgress(state.loaded, state.total, label);
+          }
+
+          const out = new Uint8Array(received);
+          let offset = 0;
+          for (const chunk of chunks) {
+            out.set(chunk, offset);
+            offset += chunk.byteLength;
+          }
+          buffer = out.buffer;
+        }
+
+        // Save a copy in our own DB. This does not share a DB/store with the game save.
+        await writeCachedAsset(url, buffer);
+        return buffer;
+      }
+
+      async function init() {
+        console.log("*game init*");
+        try {
+          // Best-effort request that the browser not evict this origin's stored data.
+          // This does not clear or rewrite any existing save/progress data.
+          requestPersistentStorage();
+
+          const files = [...PCK_P, ...WASM_P];
+          progressText.textContent = "Checking download size…";
+
+          const sizes = await Promise.all(files.map((p) => getRemoteSize(REPO + p)));
+          const state = {
+            loaded: 0,
+            total: sizes.reduce((a, b) => a + b, 0),
+          };
+
+          setProgress(0, state.total, "Starting download");
+
+          const pc = [];
+          for (let i = 0; i < PCK_P.length; i++) {
+            const p = PCK_P[i];
+            pc.push(await fetchWithProgress(
+              REPO + p,
+              sizes[i],
+              state,
+              `Downloading game data ${i + 1}/${PCK_P.length}`
+            ));
+          }
+          _p = new Blob(pc);
+
+          const wc = [];
+          for (let i = 0; i < WASM_P.length; i++) {
+            const p = WASM_P[i];
+            const sizeIndex = PCK_P.length + i;
+            wc.push(await fetchWithProgress(
+              REPO + p,
+              sizes[sizeIndex],
+              state,
+              `Downloading engine ${i + 1}/${WASM_P.length}`
+            ));
+          }
+
+          const t = wc.reduce((a, v) => a + v.byteLength, 0),
+            m = new Uint8Array(t);
+          let o = 0;
+          for (const c of wc) {
+            m.set(new Uint8Array(c), o);
+            o += c.byteLength;
+          }
+          _w = m.buffer;
+
+          progressBar.style.width = "100%";
+          progressText.textContent = "Starting game…";
+
+          new Engine({
+            args: [],
+            canvasResizePolicy: 2,
+            executable: "Brotato",
+            fileSizes: {
+              "Brotato.pck": _p.size,
+              "Brotato.wasm": _w.byteLength,
+            },
+            mainPack: "Brotato.pck",
+            wasmBinaryFile: "Brotato.wasm",
+            focusCanvas: true,
+          })
+            .startGame()
+            .then(() => {
+              document.getElementById("loading").style.display = "none";
+              document.getElementById("canvas").style.display = "block";
+            })
+            .catch((e) => {
+              console.error(e);
+              progressText.textContent = "Failed to start game.";
+            });
+        } catch (e) {
+          console.error(e);
+          progressText.textContent = "Download failed. Refresh to retry.";
+        }
+      }
+      if (typeof Engine !== "undefined") init();
+    </script>
+  
+
+</body></html>
