@@ -1,0 +1,16 @@
+name: Purge jsDelivr Brotato
+
+on:
+  push:
+    paths:
+      - '.github/workflows/purge-jsdelivr-brotato.yml'
+  workflow_dispatch:
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Purge Brotato from jsDelivr
+        run: |
+          set -e
+          curl -fsS "https://purge.jsdelivr.net/gh/bitball41/liminal-ugs@main/UGS-Files/Brotato.html"
