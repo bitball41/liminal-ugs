@@ -1,0 +1,32 @@
+name: Diagnose Brotato source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/diagnose-brotato-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download working Supabase Brotato
+        run: |
+          curl --fail --show-error --silent \
+            'https://ucgjwrjqmexenmrpbdkh.supabase.co/storage/v1/object/public/liminal-games/brotato.html' \
+            -o /tmp/supabase-brotato.html
+      - name: Compare sources
+        run: |
+          echo '=== SHA256 ==='
+          sha256sum /tmp/supabase-brotato.html UGS-Files/Brotato.html
+          echo '=== SIZES ==='
+          wc -c /tmp/supabase-brotato.html UGS-Files/Brotato.html
+          echo '=== IMPORTANT TOKENS: SUPABASE ==='
+          grep -nE '<base|Brotato.js|const REPO|new Engine|startGame|canvas|wasmBinaryFile|mainPack' /tmp/supabase-brotato.html || true
+          echo '=== IMPORTANT TOKENS: REPO ==='
+          grep -nE '<base|Brotato.js|const REPO|new Engine|startGame|canvas|wasmBinaryFile|mainPack' UGS-Files/Brotato.html || true
+          echo '=== DIFF ==='
+          diff -u /tmp/supabase-brotato.html UGS-Files/Brotato.html || true
